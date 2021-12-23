@@ -33,6 +33,9 @@ namespace TrafficManager.UI.SubTools {
 
         private bool overlayHandleHovered;
 
+        private bool presetMode = false;
+        private ExtVehicleType presetTypes;
+
         private Color HighlightColor => MainTool.GetToolColor(false, false);
         private static bool RoadMode => ShiftIsPressed;
 
@@ -118,6 +121,10 @@ namespace TrafficManager.UI.SubTools {
             currentRestrictedSegmentIds.Add(SelectedSegmentId);
             MainTool.CheckClicked(); // consume click.
             MainTool.RequestOnscreenDisplayUpdate();
+
+            if (presetMode) {
+                SetPreset();
+            }
         }
 
         public override void OnSecondaryClickOverlay() {
@@ -303,6 +310,15 @@ namespace TrafficManager.UI.SubTools {
                 ApplyRestrictionsToAllSegments();
             }
 
+            // Highlight if preset mode is enabled
+            if (presetMode) {
+                GUI.color = HighlightColor;
+            }
+            if (GUILayout.Button(
+               T("Button:Preset Mode"))) {
+                TogglePresetMode();
+            }
+
             DragWindow(ref windowRect);
         }
 
@@ -336,6 +352,62 @@ namespace TrafficManager.UI.SubTools {
                     laneInfo,
                     laneId,
                     allowedTypes);
+            }
+
+            RefreshCurrentRestrictedSegmentIds(SelectedSegmentId);
+        }
+        private void TogglePresetMode() {
+            presetMode = !presetMode;
+
+            if (presetMode) {
+                UpdatePreset();
+            }
+        }
+
+        private void UpdatePreset() {
+            NetInfo segmentInfo = SelectedSegmentId.ToSegment().Info;
+
+            IList<LanePos> lanes = Constants.ServiceFactory.NetService.GetSortedLanes(
+                SelectedSegmentId,
+                ref SelectedSegmentId.ToSegment(),
+                null,
+                VehicleRestrictionsManager.LANE_TYPES,
+                VehicleRestrictionsManager.VEHICLE_TYPES,
+                sort: false);
+
+            presetTypes =
+                    VehicleRestrictionsManager.Instance.GetAllowedVehicleTypes(
+                        SelectedSegmentId,
+                        segmentInfo,
+                        lanes[0].laneIndex,
+                        segmentInfo.m_lanes[lanes[0].laneIndex],
+                        VehicleRestrictionsMode.Configured);
+        }
+
+        private void SetPreset() {
+            
+            NetInfo segmentInfo = SelectedSegmentId.ToSegment().Info;
+
+            IList<LanePos> lanes = Constants.ServiceFactory.NetService.GetSortedLanes(
+                SelectedSegmentId,
+                ref SelectedSegmentId.ToSegment(),
+                null,
+                VehicleRestrictionsManager.LANE_TYPES,
+                VehicleRestrictionsManager.VEHICLE_TYPES,
+                sort: false);
+
+            foreach (LanePos laneData in lanes) {
+                uint laneId = laneData.laneId;
+                byte laneIndex = laneData.laneIndex;
+                NetInfo.Lane laneInfo = segmentInfo.m_lanes[laneIndex];
+
+                VehicleRestrictionsManager.Instance.SetAllowedVehicleTypes(
+                    SelectedSegmentId,
+                    segmentInfo,
+                    laneIndex,
+                    laneInfo,
+                    laneId,
+                    presetTypes);
             }
 
             RefreshCurrentRestrictedSegmentIds(SelectedSegmentId);
